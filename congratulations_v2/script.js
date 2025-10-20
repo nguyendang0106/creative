@@ -256,7 +256,7 @@ heartCanvas.height = window.innerHeight;
 const heartSettings = {
     particles: {
         length: isMobile ? 1000 : 2000,
-        duration: 2,
+        duration: 3, // Tăng từ 2 lên 3 để trái tim tồn tại lâu hơn
         velocity: isMobile ? 80 : 100,
         effect: -1.3,
         size: isMobile ? 10 : 13,
@@ -437,17 +437,22 @@ const heartImage = (function () {
 
 // Random spawn positions for hearts
 let heartSpawnPoints = [];
+let useRandomSpawn = false; // Toggle between center heart and random bursts
+let heartBeatTime = 0; // Time variable for heartbeat animation
+let activeHeartSpawnIndex = 0; // Track which spawn points are active
+const maxActiveHearts = 3; // Maximum number of hearts at the same time
 
 function generateHeartSpawnPoints() {
     heartSpawnPoints = [];
-    // Create multiple spawn points across the screen
-    const numPoints = isMobile ? 4 : 8;
+    // Create multiple spawn points across the screen, but limit active ones to 3
+    const numPoints = isMobile ? 3 : 3; // Always use 3 spawn points max
     const margin = 100;
     
     for (let i = 0; i < numPoints; i++) {
         heartSpawnPoints.push({
             x: margin + Math.random() * (heartCanvas.width - margin * 2),
-            y: margin + Math.random() * (heartCanvas.height - margin * 2)
+            y: margin + Math.random() * (heartCanvas.height - margin * 2),
+            active: true
         });
     }
 }
@@ -463,17 +468,43 @@ function renderHeartParticles() {
     
     heartCtx.clearRect(0, 0, heartCanvas.width, heartCanvas.height);
     
+    // Heartbeat effect: scale oscillates between 0.85 and 1.15
+    // Using sin wave for smooth pulsing (like a real heartbeat)
+    heartBeatTime += deltaTime;
+    const heartBeatScale = 1.0 + Math.sin(heartBeatTime * 8) * 0.15; // Tăng lên 8 để đập rất nhanh
+    
     const amount = particleRate * deltaTime;
     for (let i = 0; i < amount; i++) {
         const pos = pointOnHeart(Math.PI - 2 * Math.PI * Math.random());
         const dir = pos.clone().length(heartSettings.particles.velocity);
         
-        // Pick a random spawn point from the array
-        const spawnPoint = heartSpawnPoints[Math.floor(Math.random() * heartSpawnPoints.length)];
+        let spawnX, spawnY;
+        
+        // ALWAYS apply heartbeat scale to position for pulsing effect
+        const scaledPosX = pos.x * heartBeatScale;
+        const scaledPosY = pos.y * heartBeatScale;
+        
+        if (useRandomSpawn) {
+            // Random burst from different points (max 3 hearts)
+            if (heartSpawnPoints.length === 0) {
+                generateHeartSpawnPoints();
+            }
+            
+            // Distribute particles evenly across the 3 spawn points
+            const spawnIndex = i % heartSpawnPoints.length;
+            const spawnPoint = heartSpawnPoints[spawnIndex];
+            
+            spawnX = spawnPoint.x;
+            spawnY = spawnPoint.y;
+        } else {
+            // Main heart beating at center
+            spawnX = heartCanvas.width / 2;
+            spawnY = heartCanvas.height / 2;
+        }
         
         heartParticles.add(
-            spawnPoint.x + pos.x,
-            spawnPoint.y - pos.y,
+            spawnX + scaledPosX,
+            spawnY - scaledPosY,
             dir.x,
             -dir.y
         );
@@ -497,10 +528,13 @@ setTimeout(function () {
     renderHeartParticles();
 }, 10);
 
-// Periodically change spawn points for more dynamic effect
+// Alternate between center heart and random bursts
 setInterval(() => {
-    generateHeartSpawnPoints();
-}, isMobile ? 5000 : 3000); // Change positions every 3-5 seconds
+    useRandomSpawn = !useRandomSpawn;
+    if (useRandomSpawn) {
+        generateHeartSpawnPoints();
+    }
+}, isMobile ? 8000 : 6000); // Switch every 6-8 seconds
 
 // ============================================
 // OLD CSS HEARTS ANIMATION
